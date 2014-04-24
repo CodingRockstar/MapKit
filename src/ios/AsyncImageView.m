@@ -30,6 +30,37 @@
 }
 
 
+- (void)loadImageFromPath:(NSString*)pathozzo {
+    if ([[self subviews] count] > 0) {
+        //then this must be another image, the old one is still in subviews
+        [[[self subviews] objectAtIndex:0] removeFromSuperview]; //so remove it (releases it also)
+    }
+    //make an image view for the image
+    UIImageView* imageView = [[UIImageView alloc] initWithImage:[UIImage imageNamed:pathozzo]];
+    //make sizing choices based on your needs, experiment with these. maybe not all the calls below are needed.
+    imageView.contentMode = UIViewContentModeScaleAspectFit;
+    imageView.autoresizingMask = (UIViewAutoresizingFlexibleWidth || UIViewAutoresizingFlexibleHeight);
+    [self addSubview:imageView];
+    imageView.frame = self.bounds;
+    [imageView setNeedsLayout];
+    [self setNeedsLayout];
+}
+
+
+- (void)loadImageFromBase64:(NSString*)base64string {
+
+    NSData* data = [[NSData alloc] initWithBase64EncodedString:base64string options:0];
+    UIImageView* imageView = [[UIImageView alloc] initWithImage:[UIImage imageWithData:data]];
+	//make sizing choices based on your needs, experiment with these. maybe not all the calls below are needed.
+	imageView.contentMode = UIViewContentModeScaleAspectFit;
+	imageView.autoresizingMask = ( UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight );
+	[self addSubview:imageView];
+	imageView.frame = self.bounds;
+	[imageView setNeedsLayout];
+	[self setNeedsLayout];
+}
+
+
 //the URL connection calls this repeatedly as data arrives
 - (void)connection:(NSURLConnection *)theConnection didReceiveData:(NSData *)incrementalData {
 	if (data==nil) { data = [[NSMutableData alloc] initWithCapacity:2048]; } 

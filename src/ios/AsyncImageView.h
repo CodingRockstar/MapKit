@@ -20,6 +20,8 @@
 }
 
 - (void)loadImageFromURL:(NSURL*)url;
+- (void)loadImageFromBase64:(NSString*)base64string;
+- (void)loadImageFromPath:(NSString*)pathozzo; 
 - (void)loadDefaultImage;
 - (UIImage*) image;
 
