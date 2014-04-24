@@ -1,4 +1,4 @@
-var exec = require('cordova/exec');
+cordova.define("com.phonegap.plugins.mapkit.mapkit", function(require, exports, module) { var exec = require('cordova/exec');
 
 var MapKit = function() {
 	this.mapType = {
@@ -48,13 +48,18 @@ MapKit.prototype = {
 	    options = setDefaults(options);
 		exec(success, error, 'MapKit', 'showMap', [options]);
 	},
-
+	
 	addMapPins: function(pins, success, error) {
 		exec(success, error, 'MapKit', 'addMapPins', [pins]);
 	},
 
 	clearMapPins: function(success, error) {
 		exec(success, error, 'MapKit', 'clearMapPins', []);
+	},
+	
+	centerMap: function(options) {
+	    options = setDefaults(options);
+		exec(function(){}, function(){}, 'MapKit', 'centerMap', [options]);
 	},
 
 	hideMap: function(success, error) {
@@ -63,8 +68,14 @@ MapKit.prototype = {
 
 	changeMapType: function(mapType, success, error) {
 		exec(success, error, 'MapKit', 'changeMapType', [mapType ? { "mapType": mapType } :{ "mapType": 0 }]);
-	}
+	},
+	
+	addCloseButton: function(btn, success, error) {
+        exec(success, error, 'MapKit', 'addCloseButton', [btn]);
+    },
 
 };
 
 module.exports = new MapKit();
+
+});

@@ -10,6 +10,7 @@
 @implementation MapKitView
 
 @synthesize buttonCallback;
+@synthesize closeButtonCallback;
 @synthesize childView;
 @synthesize mapView;
 @synthesize imageButton;
@@ -43,6 +44,10 @@
 
     if(atBottom) {
         y += self.webView.bounds.size.height - height;
+    }
+    
+    if ([options objectForKey:@"buttonCallback"]) {
+        self.buttonCallback=[[options objectForKey:@"buttonCallback"] description];
     }
 
     self.childView = [[UIView alloc] initWithFrame:CGRectMake(x,y,width,height)];
@@ -104,7 +109,7 @@
 
     NSArray *pins = command.arguments[0];
 
-  for (int y = 0; y < pins.count; y++)
+    for (int y = 0; y < pins.count; y++)
     {
         NSDictionary *pinData = [pins objectAtIndex:y];
 		CLLocationCoordinate2D pinCoord = { [[pinData objectForKey:@"lat"] floatValue] , [[pinData objectForKey:@"lon"] floatValue] };
@@ -124,13 +129,13 @@
         {
             NSDictionary *iconOptions = [pinData valueForKey:@"icon"];
             pinColor = [[iconOptions valueForKey:@"pinColor" ] description];
-            imageURL=[[iconOptions valueForKey:@"resource"] description];
+            imageURL = [[iconOptions valueForKey:@"resource"] description];
         }
 
 		CDVAnnotation *annotation = [[CDVAnnotation alloc] initWithCoordinate:pinCoord index:index title:title subTitle:subTitle imageURL:imageURL];
-		annotation.pinColor=pinColor;
+		annotation.pinColor = pinColor;
 		annotation.selected = selected;
-
+        
 		[self.mapView addAnnotation:annotation];
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK] callbackId:command.callbackId];
 	}
@@ -185,6 +190,58 @@
     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK] callbackId:command.callbackId];
 }
 
+// re-center map
+- (void)centerMap:(CDVInvokedUrlCommand *)command
+{
+    float height = ([command.arguments[0] objectForKey:@"height"]) ? [[command.arguments[0] objectForKey:@"height"] floatValue] : self.webView.bounds.size.height/2;
+    
+    CLLocationCoordinate2D centerCoord = { [[command.arguments[0] objectForKey:@"lat"] floatValue] , [[command.arguments[0] objectForKey:@"lon"] floatValue] };
+	CLLocationDistance diameter = [[command.arguments[0] objectForKey:@"diameter"] floatValue];
+    
+	MKCoordinateRegion region=[ self.mapView regionThatFits: MKCoordinateRegionMakeWithDistance(centerCoord,
+                                                                                                diameter*(height / self.webView.bounds.size.width),
+                                                                                                diameter*(height / self.webView.bounds.size.width))];
+    [self.mapView setRegion:region animated:YES];
+
+}
+
+// Add a Close Button
+- (void)addCloseButton:(CDVInvokedUrlCommand *)command
+{
+    if (!self.mapView || self.childView.hidden==YES)
+    {
+        return;
+    }
+    
+    NSArray *btn = command.arguments[0];
+    for (int y = 0; y < btn.count; y++)
+    {
+        NSDictionary *btnData = [btn objectAtIndex:y];
+        float PosX = [[btnData objectForKey:@"PosX"] floatValue];
+        float PosY = [[btnData objectForKey:@"PosY"] floatValue];
+        NSString *imageUrl=[[btnData valueForKey:@"image"] description];
+        
+        CGRect viewRect = CGRectMake(PosX, PosY, 40, 40);
+        UIButton* closeBtn = [[UIButton alloc] initWithFrame:viewRect];
+        [closeBtn setImage:[UIImage imageNamed:imageUrl] forState:UIControlStateNormal];
+        [closeBtn addTarget:self action:@selector(closeButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
+        
+        if ([btnData objectForKey:@"buttonCallback"]) {
+            self.closeButtonCallback=[[btnData objectForKey:@"buttonCallback"] description];
+        }
+        
+        [self.mapView addSubview:closeBtn];
+    }
+    
+}
+- (void)closeButtonTapped:(id)button
+{
+	UIButton *tmpButton = button;
+	NSString* jsString = [NSString stringWithFormat:@"%@(\"%i\");", self.closeButtonCallback, tmpButton.tag];
+	[self.webView stringByEvaluatingJavaScriptFromString:jsString];
+}
+
+
 //Might need this later?
 /*- (void) mapView:(MKMapView *)mapView didUpdateUserLocation:(MKUserLocation *)userLocation
 {
@@ -218,16 +275,16 @@
   if ([annotation class] != CDVAnnotation.class) {
     return nil;
   }
-
-	CDVAnnotation *phAnnotation=(CDVAnnotation *) annotation;
+    
+    CDVAnnotation *phAnnotation=(CDVAnnotation *) annotation;
 	NSString *identifier=[NSString stringWithFormat:@"INDEX[%i]", phAnnotation.index];
-
-	MKPinAnnotationView *annView = (MKPinAnnotationView *)[theMapView dequeueReusableAnnotationViewWithIdentifier:identifier];
-
-	if (annView!=nil) return annView;
+    
+    MKPinAnnotationView *annView = (MKPinAnnotationView *)[theMapView dequeueReusableAnnotationViewWithIdentifier:identifier];
+    
+    if (annView!=nil) return annView;
 
 	annView=[[MKPinAnnotationView alloc] initWithAnnotation:annotation reuseIdentifier:identifier];
-
+    
 	annView.animatesDrop=YES;
 	annView.canShowCallout = YES;
 	if ([phAnnotation.pinColor isEqualToString:@"120"])
@@ -242,7 +299,15 @@
 	if (phAnnotation.imageURL)
 	{
 		NSURL *url = [[NSURL alloc] initWithString:phAnnotation.imageURL];
-		[asyncImage loadImageFromURL:url];
+		if ([[url scheme] isEqualToString:@"http"] || [[url scheme] isEqualToString:@"https"]) {
+            [asyncImage loadImageFromURL:url];
+        }
+        else if (phAnnotation.imageURL.length > 100) {
+            [asyncImage loadImageFromBase64:phAnnotation.imageURL];
+        }
+        else {
+            [asyncImage loadImageFromPath:phAnnotation.imageURL];
+        }
 	} 
 	else 
 	{
@@ -251,7 +316,7 @@
 
 	annView.leftCalloutAccessoryView = asyncImage;
 
-
+    
 	if (self.buttonCallback && phAnnotation.index!=-1)
 	{
 
@@ -269,8 +334,63 @@
 	{
 		[self performSelector:@selector(openAnnotation:) withObject:phAnnotation afterDelay:1.0];
 	}
+    
+    return annView;
+    
+    
+    /*
+    MKAnnotationView *pin = (MKAnnotationView *) [self.mapView dequeueReusableAnnotationViewWithIdentifier: identifier];
+    if (pin == nil)
+    {
+        pin = [[MKAnnotationView alloc] initWithAnnotation:annotation reuseIdentifier:identifier];
+    }
+    else
+    {
+        pin.annotation = annotation;
+    }
+    
+    [pin setImage:[UIImage imageNamed:@"www/images/1398200324_Map-Marker-Marker-Outside-Azure.png"]];
+    pin.canShowCallout = YES;
+    
+    AsyncImageView* asyncImage = [[AsyncImageView alloc] initWithFrame:CGRectMake(0,0, 50, 32)];
+	asyncImage.tag = 999;
+	if (phAnnotation.imageURL)
+	{
+		NSURL *url = [[NSURL alloc] initWithString:phAnnotation.imageURL];
+		if ([[url scheme] isEqualToString:@"http"] || [[url scheme] isEqualToString:@"https"]) {
+            [asyncImage loadImageFromURL:url];
+        }
+        else {
+            [asyncImage loadImageFromPath:phAnnotation.imageURL];
+        }
+	}
+	else
+	{
+		[asyncImage loadDefaultImage];
+	}
+    pin.leftCalloutAccessoryView = asyncImage;
 
-	return annView;
+    
+    if (self.buttonCallback && phAnnotation.index!=-1)
+	{
+        
+		UIButton *myDetailButton = [UIButton buttonWithType:UIButtonTypeDetailDisclosure];
+		myDetailButton.frame = CGRectMake(0, 0, 23, 23);
+		myDetailButton.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter;
+		myDetailButton.contentHorizontalAlignment = UIControlContentHorizontalAlignmentCenter;
+		myDetailButton.tag=phAnnotation.index;
+		pin.rightCalloutAccessoryView = myDetailButton;
+		[ myDetailButton addTarget:self action:@selector(checkButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
+        
+	}
+    
+	if(phAnnotation.selected)
+	{
+		[self performSelector:@selector(openAnnotation:) withObject:phAnnotation afterDelay:1.0];
+	}
+    
+    return pin;
+     */
 }
 
 -(void)openAnnotation:(id <MKAnnotation>) annotation
